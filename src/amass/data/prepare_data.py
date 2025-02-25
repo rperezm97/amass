@@ -70,16 +70,22 @@ def dump_amass2pytroch(datasets, amass_dir, out_posepath, logger = None, rnd_see
         logger = log2file(out_posepath.replace('pose.pt', '%s.log' % (log_name)))
         logger('Creating pytorch dataset at %s' % out_posepath)
 
-    data_pose = []
-    data_dmpl = []
-    data_betas = []
-    data_gender = []
-    data_trans = []
+    # data_pose = []
+    # data_dmpl = []
+    # data_betas = []
+    # data_gender = []
+    # data_trans = []
 
     for ds_name in datasets:
         npz_fnames = glob.glob(os.path.join(amass_dir, ds_name, '*/*_poses.npz'))
         logger('randomly selecting data points from %s.' % (ds_name))
         for npz_fname in tqdm(npz_fnames):
+            
+            data_pose = []
+            data_dmpl = []
+            data_betas = []
+            data_gender = []
+            data_trans = []
             try:
                 cdata = np.load(npz_fname)
             except:
@@ -87,24 +93,120 @@ def dump_amass2pytroch(datasets, amass_dir, out_posepath, logger = None, rnd_see
                 continue
             N = len(cdata['poses'])
 
-            cdata_ids = np.random.choice(list(range(int(0.1*N), int(0.9*N),1)), int(keep_rate*0.8*N), replace=False)#removing first and last 10% of the data to avoid repetitive initial poses
-            if len(cdata_ids)<1: continue
+            # cdata_ids = np.random.choice(list(range(int(0.1*N), int(0.9*N),1)), int(keep_rate*0.8*N), replace=False)#removing first and last 10% of the data to avoid repetitive initial poses
+            # if len(cdata_ids)<1: continue
 
-            data_pose.extend(cdata['poses'][cdata_ids].astype(np.float32))
-            data_dmpl.extend(cdata['dmpls'][cdata_ids].astype(np.float32))
-            data_trans.extend(cdata['trans'][cdata_ids].astype(np.float32))
-            data_betas.extend(np.repeat(cdata['betas'][np.newaxis].astype(np.float32), repeats=len(cdata_ids), axis=0))
-            data_gender.extend([gdr2num[str(cdata['gender'].astype(np.str))] for _ in cdata_ids])
+            # data_pose.extend(cdata['poses'][cdata_ids].astype(np.float32))
+            # data_dmpl.extend(cdata['dmpls'][cdata_ids].astype(np.float32))
+            # data_trans.extend(cdata['trans'][cdata_ids].astype(np.float32))
+            # data_betas.extend(np.repeat(cdata['betas'][np.newaxis].astype(np.float32), repeats=len(cdata_ids), axis=0))
+            # data_gender.extend([gdr2num[str(cdata['gender'].astype(np.str))] for _ in cdata_ids])
+            
+            # NON RANDOM SAMPLING
+            N = len(cdata['poses'])  # Total number of frames in sequence
 
-    assert len(data_pose) != 0
+            if N < 1:
+                continue  # Skip empty sequences
+             # Define save paths per subject
+            
+            subject_id = os.path.basename(npz_fname).replace('_poses.npz', '')
+            subject_path = makepath(os.path.join(out_posepath.replace('pose.pt', ''), subject_id))
+            if not os.path.exists(subject_path):
+                os.makedirs(subject_path)
 
-    torch.save(torch.tensor(np.asarray(data_pose, np.float32)), out_posepath)
-    torch.save(torch.tensor(np.asarray(data_dmpl, np.float32)), out_posepath.replace('pose.pt', 'dmpl.pt'))
-    torch.save(torch.tensor(np.asarray(data_betas, np.float32)), out_posepath.replace('pose.pt', 'betas.pt'))
-    torch.save(torch.tensor(np.asarray(data_trans, np.float32)), out_posepath.replace('pose.pt', 'trans.pt'))
-    torch.save(torch.tensor(np.asarray(data_gender, np.int32)), out_posepath.replace('pose.pt', 'gender.pt'))
+            subj_pose_path = out_posepath.replace('pose.pt', f'{subject_id}/pose.pt')
+            subj_dmpl_path = out_posepath.replace('pose.pt', f'{subject_id}/dmpl.pt')
+            subj_trans_path = out_posepath.replace('pose.pt', f'{subject_id}/trans.pt')
+            subj_betas_path = out_posepath.replace('pose.pt', f'{subject_id}/betas.pt')
+            subj_gender_path = out_posepath.replace('pose.pt', f'{subject_id}/gender.pt')
+
+            # Extract all frames in order (No Random Sampling)
+            data_pose.extend(cdata['poses'].astype(np.float32))
+            data_dmpl.extend(cdata['dmpls'].astype(np.float32))
+            data_trans.extend(cdata['trans'].astype(np.float32))
+            data_betas.extend(np.repeat(cdata['betas'][np.newaxis].astype(np.float32), repeats=N, axis=0))
+            data_gender.extend([gdr2num[str(cdata['gender'].astype(np.str_))] for _ in range(N)])
+            if len(data_betas[0])!=16:
+                print(subject_id, len(data_betas[0]))
+            torch.save(torch.tensor(np.asarray(data_pose, np.float32)), subj_pose_path)
+            torch.save(torch.tensor(np.asarray(data_dmpl, np.float32)),subj_dmpl_path)
+            torch.save(torch.tensor(np.asarray(data_trans, np.float32)), subj_trans_path)
+            torch.save(torch.tensor(np.asarray(data_betas, np.float32)), subj_betas_path)
+            torch.save(torch.tensor(np.asarray(data_gender, np.int32)), subj_gender_path)
+
+
+    # assert len(data_pose) != 0
+
+    # torch.save(torch.tensor(np.asarray(data_pose, np.float32)), out_posepath)
+    # torch.save(torch.tensor(np.asarray(data_dmpl, np.float32)), out_posepath.replace('pose.pt', 'dmpl.pt'))
+    # torch.save(torch.tensor(np.asarray(data_betas, np.float32)), out_posepath.replace('pose.pt', 'betas.pt'))
+    # torch.save(torch.tensor(np.asarray(data_trans, np.float32)), out_posepath.replace('pose.pt', 'trans.pt'))
+    # torch.save(torch.tensor(np.asarray(data_gender, np.int32)), out_posepath.replace('pose.pt', 'gender.pt'))
 
     return len(data_pose)
+
+
+# def dump_amass2pytroch(datasets, amass_dir, out_posepath, logger = None, rnd_seed = 100, keep_rate = 0.01):
+#     '''
+#     Select random number of frames from central 80 percent of each mocap sequence
+#     Save individual data features like pose and shape per frame in pytorch pt files
+#     test set will have the extra field for original markers
+
+#     :param datasets: the name of the dataset
+#     :param amass_dir: directory of downloaded amass npz files. should be in this structure: path/datasets/subjects/*_poses.npz
+#     :param out_posepath: the path for final pose.pt file
+#     :param logger: an instance of human_body_prior.tools.omni_tools.log2file
+#     :param rnd_seed:
+#     :return: Number of datapoints dumped using out_poseth address pattern
+#     '''
+#     import glob
+
+#     np.random.seed(rnd_seed)
+
+#     makepath(out_posepath, isfile=True)
+
+#     if logger is None:
+#         starttime = datetime.now().replace(microsecond=0)
+#         log_name = datetime.strftime(starttime, '%Y%m%d_%H%M')
+#         logger = log2file(out_posepath.replace('pose.pt', '%s.log' % (log_name)))
+#         logger('Creating pytorch dataset at %s' % out_posepath)
+
+#     data_pose = []
+#     data_dmpl = []
+#     data_betas = []
+#     data_gender = []
+#     data_trans = []
+
+#     for ds_name in datasets:
+#         npz_fnames = glob.glob(os.path.join(amass_dir, ds_name, '*/*_poses.npz'))
+#         logger('randomly selecting data points from %s.' % (ds_name))
+#         for npz_fname in tqdm(npz_fnames):
+#             try:
+#                 cdata = np.load(npz_fname)
+#             except:
+#                 logger('Could not read %s! skipping..'%npz_fname)
+#                 continue
+#             N = len(cdata['poses'])
+
+#             cdata_ids = np.random.choice(list(range(int(0.1*N), int(0.9*N),1)), int(keep_rate*0.8*N), replace=False)#removing first and last 10% of the data to avoid repetitive initial poses
+#             if len(cdata_ids)<1: continue
+
+#             data_pose.extend(cdata['poses'][cdata_ids].astype(np.float32))
+#             data_dmpl.extend(cdata['dmpls'][cdata_ids].astype(np.float32))
+#             data_trans.extend(cdata['trans'][cdata_ids].astype(np.float32))
+#             data_betas.extend(np.repeat(cdata['betas'][np.newaxis].astype(np.float32), repeats=len(cdata_ids), axis=0))
+#             data_gender.extend([gdr2num[str(cdata['gender'].astype(np.str))] for _ in cdata_ids])
+
+#     assert len(data_pose) != 0
+
+#     torch.save(torch.tensor(np.asarray(data_pose, np.float32)), out_posepath)
+#     torch.save(torch.tensor(np.asarray(data_dmpl, np.float32)), out_posepath.replace('pose.pt', 'dmpl.pt'))
+#     torch.save(torch.tensor(np.asarray(data_betas, np.float32)), out_posepath.replace('pose.pt', 'betas.pt'))
+#     torch.save(torch.tensor(np.asarray(data_trans, np.float32)), out_posepath.replace('pose.pt', 'trans.pt'))
+#     torch.save(torch.tensor(np.asarray(data_gender, np.int32)), out_posepath.replace('pose.pt', 'gender.pt'))
+
+#     return len(data_pose)
+
 
 class AMASS_Augment(Dataset):
     """Use this dataloader to do any augmentation task in parallel"""
@@ -137,6 +239,7 @@ class AMASS_Augment(Dataset):
 
         return sample
 
+
 def prepare_amass(amass_splits, amass_dir, work_dir, logger=None):
 
     if logger is None:
@@ -151,10 +254,10 @@ def prepare_amass(amass_splits, amass_dir, work_dir, logger=None):
 
     logger('Stage I: Fetch data from AMASS npz files')
 
-    for split_name, datasets in amass_splits.items():
-        outpath = makepath(os.path.join(stageI_outdir, split_name, 'pose.pt'), isfile=True)
-        if os.path.exists(outpath): continue
-        dump_amass2pytroch(datasets, amass_dir, outpath, logger=logger)
+    # for split_name, datasets in amass_splits.items():
+    #     outpath = makepath(os.path.join(stageI_outdir, split_name, 'pose.pt'), isfile=True)
+    #     if os.path.exists(outpath): continue
+    #     dump_amass2pytroch(datasets, amass_dir, outpath, logger=logger)
 
     logger('Stage II: augment the data and save into h5 files to be used in a cross framework scenario.')
 
@@ -167,51 +270,139 @@ def prepare_amass(amass_splits, amass_dir, work_dir, logger=None):
         betas = pytables.Float32Col(16)  # float  (single-precision)
         trans = pytables.Float32Col(3)  # float  (single-precision)
 
-    stageII_outdir = makepath(os.path.join(work_dir, 'stage_II'))
+    # stageII_outdir = makepath(os.path.join(work_dir, 'stage_II'))
 
+    # batch_size = 256
+    # max_num_epochs = 0  # how much augmentation we would get
+
+    # for split_name in amass_splits.keys():
+    #     h5_outpath = os.path.join(stageII_outdir, '%s.h5' % split_name)
+    #     if os.path.exists(h5_outpath): continue
+
+    #     ds = AMASS_Augment(dataset_dir=os.path.join(stageI_outdir, split_name))
+    #     logger('%s has %d data points!' % (split_name, len(ds)))
+    #     dataloader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=32, drop_last=False)
+    #     with pytables.open_file(h5_outpath, mode="w") as h5file:
+    #         table = h5file.create_table('/', 'data', AMASS_ROW)
+
+    #         for epoch_num in range(max_num_epochs):
+    #             for bId, bData in tqdm(enumerate(dataloader)):
+    #                 for i in range(len(bData['trans'])):
+    #                     for k in bData.keys():
+    #                         table.row[k] = c2c(bData[k][i])
+    #                     table.row.append()
+    #                 table.flush()
+
+    stageII_outdir = makepath(os.path.join(work_dir, 'stage_II'))
     batch_size = 256
-    max_num_epochs = 1  # how much augmentation we would get
+    max_num_epochs = 1  # Set augmentation iterations
 
     for split_name in amass_splits.keys():
-        h5_outpath = os.path.join(stageII_outdir, '%s.h5' % split_name)
-        if os.path.exists(h5_outpath): continue
+        split_dir = os.path.join(stageI_outdir, split_name)
+        
+        # Extract all subject IDs dynamically from the folder structure
+        subject_ids = [subj for subj in os.listdir(split_dir) if os.path.isdir(os.path.join(split_dir, subj))]
 
-        ds = AMASS_Augment(dataset_dir=os.path.join(stageI_outdir, split_name))
-        logger('%s has %d data points!' % (split_name, len(ds)))
-        dataloader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=32, drop_last=False)
-        with pytables.open_file(h5_outpath, mode="w") as h5file:
-            table = h5file.create_table('/', 'data', AMASS_ROW)
+        for subject_id in subject_ids:
+            print(subject_id)
+            subject_path = os.path.join(split_dir, subject_id)
+            h5_outpath = os.path.join(stageII_outdir, split_name,f'{subject_id}.h5')
+            
+            if os.path.exists(h5_outpath):
+                continue  # Skip already processed subjects
+            makepath(h5_outpath, isfile=True)
+            ds = AMASS_Augment(dataset_dir=subject_path)  # Load per-subject data
+            
+            dataloader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=10, drop_last=False)
+            if len(ds) == 0:
+                print(f"Skipping {subject_id}: No frames found.")
+                continue  # Skip this subject
+            with pytables.open_file(h5_outpath, mode="w") as h5file:
+                table = h5file.create_table('/', 'data', AMASS_ROW)
 
-            for epoch_num in range(max_num_epochs):
-                for bId, bData in tqdm(enumerate(dataloader)):
-                    for i in range(len(bData['trans'])):
-                        for k in bData.keys():
-                            table.row[k] = c2c(bData[k][i])
-                        table.row.append()
-                    table.flush()
+                for epoch_num in range(max_num_epochs):
+                    for bId, bData in enumerate(dataloader):
+                        print(bId, len(bData['trans']))
+                        if len(bData['trans']) < 20:  # Ensure the batch is not empty
+                            print(f" Skipping empty batch{bId} for {subject_id}")
+                            continue  # Skip writing empty batches
 
-    logger('\nStage III: dump every data field for all the splits as final pytorch pt files')
-    # we would like to use pt files because their interface could run in multiple threads
+                        for i in range(len(bData['trans'])):
+                            for k in bData.keys():
+                                table.row[k] = c2c(bData[k][i])
+                            table.row.append()
+                        
+                        table.flush()  # Ensure data is fully written after every batch
+            break
+      
+
+    logger(f'\nStage II complete. Data stored per subject in {stageII_outdir}')
+
+
+
+    # logger('\nStage III: dump every data field for all the splits as final pytorch pt files')
+    # # we would like to use pt files because their interface could run in multiple threads
+    # stageIII_outdir = makepath(os.path.join(work_dir, 'stage_III'))
+
+    # for split_name in amass_splits.keys():
+    #     h5_filepath = os.path.join(stageII_outdir, '%s.h5' % split_name)
+    #     if not os.path.exists(h5_filepath) : continue
+
+    #     with pytables.open_file(h5_filepath, mode="r") as h5file:
+    #         data = h5file.get_node('/data')
+    #         data_dict = {k:[] for k in data.colnames}
+    #         for id in range(len(data)):
+    #             cdata = data[id]
+    #             for k in data_dict.keys():
+    #                 data_dict[k].append(cdata[k])
+
+    #     for k,v in data_dict.items():
+    #         outfname = makepath(os.path.join(stageIII_outdir, split_name, '%s.pt' % k), isfile=True)
+    #         if os.path.exists(outfname): continue
+    #         torch.save(torch.from_numpy(np.asarray(v)), outfname)
+    logger('\nStage III: Convert .h5 files to final PyTorch dataset')
     stageIII_outdir = makepath(os.path.join(work_dir, 'stage_III'))
 
     for split_name in amass_splits.keys():
-        h5_filepath = os.path.join(stageII_outdir, '%s.h5' % split_name)
-        if not os.path.exists(h5_filepath) : continue
+    # Get all per-subject HDF5 files
+        subject_files = [f for f in os.listdir(os.path.join(stageII_outdir, split_name)) if f.endswith('.h5')]
 
-        with pytables.open_file(h5_filepath, mode="r") as h5file:
-            data = h5file.get_node('/data')
-            data_dict = {k:[] for k in data.colnames}
-            for id in range(len(data)):
-                cdata = data[id]
-                for k in data_dict.keys():
-                    data_dict[k].append(cdata[k])
+        for subject_file in subject_files:
+            subject_id = subject_file.replace('.h5', '')
+            h5_filepath = os.path.join(stageII_outdir,split_name, subject_file)
 
-        for k,v in data_dict.items():
-            outfname = makepath(os.path.join(stageIII_outdir, split_name, '%s.pt' % k), isfile=True)
-            if os.path.exists(outfname): continue
-            torch.save(torch.from_numpy(np.asarray(v)), outfname)
+            if not os.path.exists(h5_filepath):
+                continue
 
-    logger('Dumped final pytorch dataset at %s' % stageIII_outdir)
+            final_dataset = {}
+
+            with pytables.open_file(h5_filepath, mode="r") as h5file:
+                data = h5file.get_node('/data')
+
+                # Extract pose, shape, translation, etc.
+                subject_data = {k: [] for k in data.colnames}
+                for id in range(len(data)):
+                    cdata = data[id]
+                    for k in subject_data.keys():
+                        subject_data[k].append(cdata[k])
+
+                # Convert to PyTorch tensors
+                subject_tensor_dict = {
+                    k: torch.tensor(np.array(v), dtype=torch.float32) for k, v in subject_data.items()
+                }
+                # Ensure 'pose' exists
+                if subject_tensor_dict.get('pose') is None:
+                    print(f"Warning: 'pose' data missing for {subject_id}, skipping subject.")
+                    continue
+            # Save per-subject dataset
+            final_save_path = os.path.join(stageIII_outdir, split_name,f'{subject_id}_dataset.pt')
+            
+            makepath(final_save_path, isfile=True)
+            torch.save(subject_tensor_dict, final_save_path)
+
+    logger(f'Final PyTorch datasets saved per subject at {stageIII_outdir}')
+
+
 
 if __name__ == '__main__':
     # ['CMU', 'Transitions_mocap', 'MPI_Limits', 'SSM_synced', 'TotalCapture', 'Eyes_Japan_Dataset', 'MPI_mosh', 'MPI_HDM05', 'HumanEva', 'ACCAD', 'EKUT', 'SFU', 'KIT', 'H36M', 'TCD_handMocap', 'BML']
