@@ -126,8 +126,7 @@ def dump_amass2pytroch(datasets, amass_dir, out_posepath, logger = None, rnd_see
             data_trans.extend(cdata['trans'].astype(np.float32))
             data_betas.extend(np.repeat(cdata['betas'][np.newaxis].astype(np.float32), repeats=N, axis=0))
             data_gender.extend([gdr2num[str(cdata['gender'].astype(np.str_))] for _ in range(N)])
-            if len(data_betas[0])!=16:
-                print(subject_id, len(data_betas[0]))
+            
             torch.save(torch.tensor(np.asarray(data_pose, np.float32)), subj_pose_path)
             torch.save(torch.tensor(np.asarray(data_dmpl, np.float32)),subj_dmpl_path)
             torch.save(torch.tensor(np.asarray(data_trans, np.float32)), subj_trans_path)
@@ -304,7 +303,6 @@ def prepare_amass(amass_splits, amass_dir, work_dir, logger=None):
         subject_ids = [subj for subj in os.listdir(split_dir) if os.path.isdir(os.path.join(split_dir, subj))]
 
         for subject_id in subject_ids:
-            print(subject_id)
             subject_path = os.path.join(split_dir, subject_id)
             h5_outpath = os.path.join(stageII_outdir, split_name,f'{subject_id}.h5')
             
@@ -322,7 +320,6 @@ def prepare_amass(amass_splits, amass_dir, work_dir, logger=None):
 
                 for epoch_num in range(max_num_epochs):
                     for bId, bData in enumerate(dataloader):
-                        print(bId, len(bData['trans']))
                         if len(bData['trans']) < 20:  # Ensure the batch is not empty
                             print(f" Skipping empty batch{bId} for {subject_id}")
                             continue  # Skip writing empty batches
@@ -333,7 +330,7 @@ def prepare_amass(amass_splits, amass_dir, work_dir, logger=None):
                             table.row.append()
                         
                         table.flush()  # Ensure data is fully written after every batch
-            break
+            
       
 
     logger(f'\nStage II complete. Data stored per subject in {stageII_outdir}')
